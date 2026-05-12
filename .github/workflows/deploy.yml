@@ -41,17 +41,17 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
-        working-directory: ./docs-site
+        working-directory: ./docs
         run: pnpm install
 
       - name: Build
-        working-directory: ./docs-site
+        working-directory: ./docs
         run: pnpm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs-site/.vitepress/dist
+          path: ./docs/.vitepress/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
