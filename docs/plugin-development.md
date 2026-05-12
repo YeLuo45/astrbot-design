@@ -1,828 +1,1223 @@
----
-outline: deep
----
+# AstrBot Plugin Development Guide
 
-# AstrBot 插件开发指南
+> **Plugin = Star.** AstrBot internally calls plugins "Stars". The handler system is called "star_handler".
 
-欢迎来到 AstrBot 插件开发指南！本指南将引导您完成插件开发的完整流程。
+## Table of Contents
 
-## 目录
-
-- [环境准备](#环境准备)
-- [开发原则](#开发原则)
-- [最小实例](#最小实例)
-- [消息事件处理](#消息事件处理)
-- [消息发送](#消息发送)
-- [插件配置](#插件配置)
-- [插件国际化](#插件国际化)
-- [插件页面 (Pages)](#插件页面-pages)
-- [AI 与 LLM 调用](#ai-与-llm-调用)
-- [函数工具](#函数工具)
-- [会话控制](#会话控制)
-- [文转图](#文转图)
-- [事件钩子](#事件钩子)
-- [其他功能](#其他功能)
-- [发布插件](#发布插件)
+1. [Plugin System Overview](#1-plugin-system-overview)
+2. [Project Structure](#2-project-structure)
+3. [Plugin Metadata (metadata.yaml)](#3-plugin-metadata-metadatayaml)
+4. [The Star Base Class](#4-the-star-base-class)
+5. [Event Handlers](#5-event-handlers)
+6. [Command Handlers](#6-command-handlers)
+7. [Context API](#7-context-api)
+8. [LLM/Tool Integration](#8-llmtool-integration)
+9. [Plugin Pages (Dashboard Integration)](#9-plugin-pages-dashboard-integration)
+10. [Internationalization (i18n)](#10-internationalization-i18n)
+11. [Plugin Lifecycle](#11-plugin-lifecycle)
+12. [Complete Example: Hello World](#12-complete-example-hello-world)
+13. [Plugin Loading & Management](#13-plugin-loading--management)
+14. [Filter Reference](#14-filter-reference)
+15. [Event Type Reference](#15-event-type-reference)
 
 ---
 
-## 环境准备
+## 1. Plugin System Overview
 
-### 获取插件模板
+AstrBot's plugin system ("Star") is a modular extension architecture that allows developers to add new capabilities without modifying core code.
 
-1. 打开 AstrBot 插件模板: [helloworld](https://github.com/Soulter/helloworld)
-2. 点击右上角的 `Use this template`
-3. 点击 `Create new repository`
-4. 填写插件名（推荐以 `astrbot_plugin_` 开头，全部小写，不能包含空格）
+### Core Concepts
 
-### 克隆项目到本地
+| Concept | Description |
+|---------|-------------|
+| **Star** | Plugin class — all plugins inherit from `Star` |
+| **StarHandler** | Individual handler methods within a Star |
+| **EventType** | Type of event that triggers a handler |
+| **HandlerFilter** | Condition that determines if a handler should respond |
+| **Context** | Runtime context passed to Star, provides all APIs |
+| **metadata.yaml** | Plugin descriptor file |
 
-```bash
-git clone https://github.com/AstrBotDevs/AstrBot
-mkdir -p AstrBot/data/plugins
-cd AstrBot/data/plugins
-git clone 插件仓库地址
+### Handler Execution Flow
+
+```
+User Message
+    ↓
+Platform Adapter → AstrMessageEvent
+    ↓
+Handler Dispatch (star_handlers_registry)
+    ↓
+Filter Check (CommandFilter / RegexFilter / etc.)
+    ↓
+Handler Method Called
+    ↓
+Optional: stop_event() to prevent further handlers
 ```
 
-### 更新 metadata.yaml
+### Key Files
 
-编辑插件目录下的 `metadata.yaml` 文件，填写插件元数据信息。这是 AstrBot 识别插件的必要文件。
+| File | Purpose |
+|------|---------|
+| `astrbot/core/star/base.py` | `Star` base class |
+| `astrbot/core/star/star.py` | `StarMetadata`, `star_registry`, `star_map` |
+| `astrbot/core/star/star_handler.py` | `EventType`, `StarHandlerRegistry`, `star_handlers_registry` |
+| `astrbot/core/star/register/__init__.py` | All `@register_*` decorators |
+| `astrbot/core/star/register/star_handler.py` | Registration decorator implementations |
+| `astrbot/core/star/filter/` | Handler filters: Command, Regex, Permission, etc. |
+| `astrbot/core/star/context.py` | `Context` class — all plugin-facing APIs |
+| `astrbot/core/star/star_manager.py` | Plugin lifecycle (load/unload/reload/install) |
+| `astrbot/api/star/__init__.py` | Public plugin API (`from astrbot.api import star`) |
 
-### 设置插件 Logo（可选）
+---
 
-在插件目录下添加 `logo.png` 文件作为插件 Logo。长宽比 1:1，推荐尺寸 256x256。
+## 2. Project Structure
 
-### 声明支持平台（可选）
+A plugin lives in `data/stars/` (or `stars/` in dev mode):
 
-在 `metadata.yaml` 中添加 `support_platforms` 字段：
+```
+data/stars/
+└── my_plugin/
+    ├── __init__.py        # Plugin entry point (can be empty)
+    ├── main.py            # Plugin code — contains the Star class
+    ├── metadata.yaml      # Plugin descriptor (required)
+    ├── requirements.txt   # Optional pip dependencies
+    ├── i18n/              # Optional internationalization
+    │   ├── en.json
+    │   └── zh.json
+    └── assets/            # Optional static assets
+        └── icon.png
+```
+
+### metadata.yaml (required)
 
 ```yaml
-support_platforms:
+name: my_plugin            # Unique plugin identifier
+desc: A short description  # One-line description
+author: Author Name
+version: 1.0.0
+astrbot_version: ">=4.0.0" # PEP 440 specifier, e.g. ">=4.13.0,<4.17.0"
+                             # If omitted, any AstrBot version is accepted
+```
+
+**Optional fields:**
+
+```yaml
+short_desc: Short description  # For plugin store display
+repo: https://github.com/user/repo  # Plugin repo URL
+logo_path: assets/icon.png       # Relative to plugin root
+support_platforms:               # Restrict to specific platforms
+  - qq
   - telegram
-  - discord
+i18n:                             # Inline i18n translations
+  en:
+    greeting: "Hello"
+  zh:
+    greeting: "你好"
 ```
 
-支持的平台：`aiocqhttp`、`qq_official`、`telegram`、`wecom`、`lark`、`dingtalk`、`discord`、`slack`、`kook`、`vocechat`、`weixin_official_account`、`satori`、`misskey`、`line`
+---
 
-### 声明 AstrBot 版本范围（可选）
+## 3. Plugin Metadata (metadata.yaml)
+
+The `metadata.yaml` file is the plugin's identity card. It is read by `StarManager` during plugin loading.
+
+### Minimal Example
 
 ```yaml
-astrbot_version: ">=4.16,<5"
+name: hello_world
+desc: A simple hello world plugin
+author: Developer
+version: 1.0.0
 ```
 
-### 调试插件
+### Full Example
 
-AstrBot 采用运行时注入插件机制。启动 AstrBot 本体后，修改插件代码可在 WebUI 插件管理处点击 `重载插件` 热更新。
-
-### 插件依赖管理
-
-在插件目录下创建 `requirements.txt` 文件写入第三方依赖，避免用户安装时出现 Module Not Found 问题。
+```yaml
+name: image_generator
+desc: Generate images using AI
+author: AstrBot Team
+version: 2.1.0
+astrbot_version: ">=4.13.0,<5.0.0"
+short_desc: AI image generation
+repo: https://github.com/astrbot/image-generator
+logo_path: assets/logo.png
+support_platforms:
+  - qq
+  - telegram
+  - feishu
+i18n:
+  en:
+    generating: "Generating image..."
+    done: "Image ready!"
+  zh:
+    generating: "正在生成图片..."
+    done: "图片已就绪！"
+```
 
 ---
 
-## 开发原则
+## 4. The Star Base Class
 
-开发插件请遵守以下原则：
+All plugins inherit from `Star`. It provides the plugin context, utility methods, and lifecycle hooks.
 
-- 功能需经过测试
-- 需包含良好的注释
-- 持久化数据请存储于 `data` 目录下，防止更新/重装插件时数据被覆盖
-- 良好的错误处理机制，不要让插件因一个错误而崩溃
-- 提交前使用 [ruff](https://docs.astral.sh/ruff/) 工具格式化代码
-- 不要使用 `requests` 库进行网络请求，使用 `aiohttp`、`httpx` 等异步库
-- 对某个插件进行功能扩增时，优先提交 PR
+```python
+from astrbot.api import star
+
+class MyPlugin(star.Star):
+    def __init__(self, context: star.Context, config: dict | None = None) -> None:
+        super().__init__(context, config)
+        # Initialization code here
+```
+
+### Inherited Mixins
+
+`Star` inherits from two mixins providing key capabilities:
+
+```python
+class Star(CommandParserMixin, PluginKVStoreMixin):
+    # CommandParserMixin: enables command parsing utilities
+    # PluginKVStoreMixin: enables persistent key-value storage
+```
+
+### Available Attributes & Methods
+
+| Attribute/Method | Description |
+|-------------------|-------------|
+| `self.context` | `Context` object — all plugin APIs |
+| `self.context.get_config(umo=None)` | Get platform/user configuration |
+| `self.text_to_image(text, return_url=True)` | Render text as image |
+| `self.html_render(tmpl, data, return_url=True, options=None)` | Render custom HTML template |
+| `async def initialize()` | Called when plugin is activated |
+| `async def terminate()` | Called when plugin is deactivated/reloaded |
+
+### Plugin KV Store
+
+Plugins can persist data using the built-in KV store:
+
+```python
+# Inside a Star method
+await self.context.get_storage().set("user_count", 0)
+count = await self.context.get_storage().get("user_count")
+```
 
 ---
 
-## 最小实例
+## 5. Event Handlers
+
+Event handlers are methods decorated with `@register_*` that respond to specific events. The most common is `@filter.event_message_type()`.
+
+### 5.1 Message Type Filter
+
+Respond to messages of a specific type:
 
 ```python
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star
-from astrbot.api import logger
+from astrbot.api.message_components import Image, Plain
 
-class MyPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
+class MyPlugin(star.Star):
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def handle_all(self, event: AstrMessageEvent):
+        """Handles all message types"""
+        pass
 
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        '''这是 hello world 指令'''
-        user_name = event.get_sender_name()
-        yield event.plain_result(f"Hello, {user_name}!")
+    @filter.event_message_type(filter.EventMessageType.TEXT)
+    async def handle_text(self, event: AstrMessageEvent):
+        """Handles only text messages"""
+        pass
 
-    async def terminate(self):
-        '''插件卸载/停用时调用'''
+    @filter.event_message_type(filter.EventMessageType.IMAGE)
+    async def handle_image(self, event: AstrMessageEvent):
+        """Handles only image messages"""
+        pass
 ```
 
-关键点：
-1. 插件继承自 `Star` 基类
-2. `__init__` 方法接收 `Context` 对象
-3. Handler 必须在插件类中定义，前两个参数为 `self` 和 `event`
-4. 使用 `from astrbot.api import logger` 获取日志对象
-5. 插件类所在文件名必须命名为 `main.py`
-
----
-
-## 消息事件处理
-
-### 指令
+**Available EventMessageTypes:**
 
 ```python
-@filter.command("helloworld")
-async def helloworld(self, event: AstrMessageEvent):
-    yield event.plain_result("Hello!")
+filter.EventMessageType.ALL         # All message types
+filter.EventMessageType.TEXT        # Plain text
+filter.EventMessageType.IMAGE       # Images
+filter.EventMessageType.VIDEO       # Videos
+filter.EventMessageType.VOICE       # Voice/audio
+filter.EventMessageType.FILE        # Files
+filter.EventMessageType.MENTION     # @mentions
+filter.EventMessageType.REPLY       # Reply messages
 ```
 
-### 带参指令
+**Priority:** Handlers with higher `priority` values execute first. Use `priority=N` to control ordering:
 
 ```python
-@filter.command("echo")
-async def echo(self, event: AstrMessageEvent, message: str):
-    yield event.plain_result(f"你发了: {message}")
-
-@filter.command("add")
-async def add(self, event: AstrMessageEvent, a: int, b: int):
-    yield event.plain_result(f"结果是: {a + b}")
-```
-
-### 指令组
-
-```python
-@filter.command_group("math")
-def math():
-    pass
-
-@math.command("add")
-async def add(self, event: AstrMessageEvent, a: int, b: int):
-    yield event.plain_result(f"结果是: {a + b}")
-
-@math.command("sub")
-async def sub(self, event: AstrMessageEvent, a: int, b: int):
-    yield event.plain_result(f"结果是: {a - b}")
-```
-
-### 事件类型过滤
-
-```python
-# 私聊消息
-@filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-async def on_private(self, event: AstrMessageEvent):
-    yield event.plain_result("收到私聊！")
-
-# 群聊消息
-@filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-
-# 所有消息
-@filter.event_message_type(filter.EventMessageType.ALL)
-```
-
-### 平台过滤
-
-```python
-@filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP | filter.PlatformAdapterType.QQOFFICIAL)
-async def on_aiocqhttp(self, event: AstrMessageEvent):
-    yield event.plain_result("收到 QQ 消息！")
-```
-
-### 管理员指令
-
-```python
-@filter.permission_type(filter.PermissionType.ADMIN)
-@filter.command("admin_cmd")
-async def admin_cmd(self, event: AstrMessageEvent):
+@filter.event_message_type(filter.EventMessageType.ALL, priority=100)
+async def early_handler(self, event: AstrMessageEvent):
+    """Executes before default priority handlers"""
     pass
 ```
 
-### 多个过滤器
+### 5.2 Regex Filter
+
+Respond to messages matching a regex pattern:
 
 ```python
-@filter.command("helloworld")
-@filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-async def helloworld(self, event: AstrMessageEvent):
-    yield event.plain_result("你好！")
+from astrbot.api import star, register
+
+class MyPlugin(star.Star):
+    @register.register_regex(r"^hello(?:\s+(.+))?$")
+    async def handle_hello(self, event: AstrMessageEvent):
+        """Matches 'hello' or 'hello <name>'"""
+        # The matched groups are available via event.get_message_str()
+        message = event.get_message_str()
+        # Extract name if present
+        import re
+        match = re.match(r"^hello(?:\s+(.+))?$", message)
+        name = match.group(1) if match else "World"
+        await event.reply(f"Hello, {name}!")
 ```
 
-### 优先级
+### 5.3 Permission Filter
+
+Restrict handlers to users with specific permissions:
 
 ```python
-@filter.command("helloworld", priority=1)
-async def helloworld(self, event: AstrMessageEvent):
-    yield event.plain_result("Hello!")
+from astrbot.api.event import filter, AstrMessageEvent
+
+class MyPlugin(star.Star):
+    @filter.event_message_type(filter.EventMessageType.TEXT)
+    @filter.permission(filter.PermissionType.SUPERUSER)
+    async def admin_only(self, event: AstrMessageEvent):
+        """Only superusers can trigger this"""
+        await event.reply("You have admin access!")
+```
+
+### 5.4 Platform Filter
+
+Restrict handlers to specific platforms:
+
+```python
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.platform import PlatformType
+
+class MyPlugin(star.Star):
+    @filter.event_message_type(filter.EventMessageType.TEXT)
+    @filter.platform_adapter_type(PlatformType.QQ)
+    async def qq_only(self, event: AstrMessageEvent):
+        """Only responds on QQ platform"""
+        await event.reply("This is QQ!")
+```
+
+### 5.5 LLM Event Hooks
+
+Intercept LLM request/response cycle:
+
+```python
+from astrbot.api import register
+
+class MyPlugin(star.Star):
+    @register.register_on_llm_request()
+    async def on_llm_request(self, event: AstrMessageEvent, request):
+        """Called before LLM request is made"""
+        # request is a ProviderRequest object
+        # Can modify messages, model, parameters
+        pass
+
+    @register.register_on_llm_response()
+    async def on_llm_response(self, event: AstrMessageEvent, response):
+        """Called after LLM response is received"""
+        # response is a ProviderResponse object
+        pass
+
+    @register.register_on_agent_begin()
+    async def on_agent_begin(self, event: AstrMessageEvent, agent):
+        """Called when agent starts executing"""
+        pass
+
+    @register.register_on_agent_done()
+    async def on_agent_done(self, event: AstrMessageEvent, result):
+        """Called when agent finishes executing"""
+        pass
+```
+
+### 5.6 System Event Hooks
+
+```python
+from astrbot.api import register
+
+class MyPlugin(star.Star):
+    @register.register_on_astrbot_loaded()
+    async def on_loaded(self, event: AstrMessageEvent):
+        """Called once when AstrBot finishes loading"""
+        pass
+
+    @register.register_on_plugin_loaded()
+    async def on_plugin_loaded(self, event: AstrMessageEvent):
+        """Called when any plugin finishes loading"""
+        pass
+
+    @register.register_on_plugin_error()
+    async def on_plugin_error(self, event: AstrMessageEvent, error: Exception, handler_name: str):
+        """Called when a plugin handler throws an exception"""
+        pass
+```
+
+### 5.7 Combining Filters
+
+Filters can be stacked — all conditions must pass:
+
+```python
+class MyPlugin(star.Star):
+    @filter.event_message_type(filter.EventMessageType.TEXT)
+    @filter.platform_adapter_type(PlatformType.QQ)
+    @register.register_regex(r"^/stats")
+    async def handle_stats(self, event: AstrMessageEvent):
+        """QQ platform + text + /stats prefix"""
+        pass
 ```
 
 ---
 
-## 消息发送
+## 6. Command Handlers
 
-### 被动消息
+Commands are the primary way users interact with plugins. AstrBot uses a decorator-based command registration system.
+
+### 6.1 Basic Command
 
 ```python
-yield event.plain_result("Hello!")
-yield event.image_result("path/to/image.jpg")
-yield event.image_result("https://example.com/image.jpg")
+from astrbot.api import star, register
+
+class MyPlugin(star.Star):
+    @register.register_command("hello")
+    async def cmd_hello(self, event: AstrMessageEvent):
+        """Say hello to the user"""
+        await event.reply("Hello!")
 ```
 
-### 主动消息
+Triggered by: `@bot hello`
+
+### 6.2 Command with Parameters
+
+Handler methods after `self` and `event` map to command arguments:
 
 ```python
-from astrbot.api.event import MessageChain
-
-@filter.command("helloworld")
-async def helloworld(self, event: AstrMessageEvent):
-    message_chain = MessageChain().message("Hello!").file_image("path/to/image.jpg")
-    await self.context.send_message(event.unified_msg_origin, message_chain)
+@register.register_command("greet")
+async def cmd_greet(self, event: AstrMessageEvent, name: str, age: int = 18):
+    """Greet someone
+    
+    Args:
+        name: Name of the person to greet
+        age: Age (default: 18)
+    """
+    await event.reply(f"Hello {name}, you are {age} years old!")
 ```
 
-### 富媒体消息
+Triggered by: `@bot greet Alice 25` → `"Hello Alice, you are 25 years old!"`
+
+### Supported Parameter Types
+
+| Type | Conversion | Notes |
+|------|------------|-------|
+| `str` | Direct string | Default if no type annotation |
+| `int` | `int(param)` | |
+| `float` | `float(param)` | |
+| `bool` | `True`/`False` | Accepts `true/false/yes/no/1/0` |
+| `GreedyStr` | Remaining text as one string | Must be the last parameter |
+| `None` | Auto-detect | Tries int first, then string |
+
+### 6.3 GreedyStr (All Remaining Text)
 
 ```python
-import astrbot.api.message_components as Comp
+from astrbot.api.event.filter.command import GreedyStr
 
-chain = [
-    Comp.At(qq=event.get_sender_id()),
-    Comp.Plain("来看这个图："),
-    Comp.Image.fromURL("https://example.com/image.jpg"),
-    Comp.Image.fromFileSystem("path/to/image.jpg"),
-]
-yield event.chain_result(chain)
+@register.register_command("echo")
+async def cmd_echo(self, event: AstrMessageEvent, text: GreedyStr):
+    """Echo back all text after the command"""
+    await event.reply(str(text))
 ```
 
-常用消息组件：
-- `Comp.Plain(text)` - 文本消息
-- `Comp.At(qq=123456)` - At 用户
-- `Comp.Image.fromURL(url)` / `Comp.Image.fromFileSystem(path)` - 图片
-- `Comp.File(file, name)` - 文件
-- `Comp.Record(file, url)` - 语音
-- `Comp.Video.fromURL(url)` / `Comp.Video.fromFileSystem(path)` - 视频
-- `Comp.Face(id)` - QQ 表情
+Triggered by: `@bot echo hello world foo` → `"hello world foo"`
 
-### 发送群合并转发消息
+### 6.4 Command Aliases
 
 ```python
-from astrbot.api.message_components import Node, Plain, Image
+@register.register_command("hello", alias={"hi", "hey"})
+async def cmd_hello(self, event: AstrMessageEvent):
+    """Say hello — alias: hi, hey"""
+    await event.reply("Hello!")
+```
 
-node = Node(
-    uin=905617992,
-    name="Soulter",
-    content=[Plain("hi"), Image.fromFileSystem("test.jpg")]
+Triggered by: `@bot hello`, `@bot hi`, `@bot hey`
+
+### 6.5 Command Groups (Sub-commands)
+
+```python
+class MyPlugin(star.Star):
+    @register.register_command_group("user")
+    async def user_group(self, event: AstrMessageEvent):
+        """User management group"""
+        pass
+
+    @register.register_command("user add", sub_command="add")
+    async def cmd_user_add(self, event: AstrMessageEvent, name: str):
+        """Add a user: /user add <name>"""
+        await event.reply(f"User {name} added!")
+
+    @register.register_command("user remove", sub_command="remove")
+    async def cmd_user_remove(self, event: AstrMessageEvent, name: str):
+        """Remove a user: /user remove <name>"""
+        await event.reply(f"User {name} removed!")
+```
+
+Triggered by: `@bot user add Alice`, `@bot user remove Bob`
+
+### 6.6 Inline Filters on Commands
+
+```python
+@register.register_command("admin_only")
+@register.register_permission_type(PermissionType.SUPERUSER)
+async def cmd_admin(self, event: AstrMessageEvent):
+    """Admin-only command"""
+    await event.reply("Admin access confirmed!")
+```
+
+---
+
+## 7. Context API
+
+The `Context` object (`star.Context`) is passed to every Star's `__init__` and provides access to all AstrBot capabilities.
+
+### 7.1 Sending Messages
+
+```python
+# Reply to the current message (in same chat)
+await event.reply("Hello!")
+
+# Reply with multiple components
+from astrbot.api.message_components import Image, Plain
+await event.reply([
+    Plain("Here is your image: "),
+    Image(url="https://example.com/image.png")
+])
+
+# Send to specific conversation
+await self.context.send_message(
+    unified_msg_origin="qq:123456",
+    message=[Plain("Direct message!")],
 )
-yield event.chain_result([node])
+
+# Send to channel (platform-specific)
+await self.context.send_message(
+    platform="telegram",
+    channel_id="-1001234567890",
+    message=[Plain("Channel message!")],
+)
 ```
 
-### 控制事件传播
+### 7.2 Getting Configuration
 
 ```python
-@filter.command("check")
-async def check(self, event: AstrMessageEvent):
-    if not some_condition:
-        yield event.plain_result("检查失败")
-        event.stop_event()  # 停止事件传播
+# Get global config
+cfg = self.context.get_config()
+
+# Get per-platform config
+cfg = self.context.get_config(umo="qq:123456")
+
+# Access config values
+api_key = cfg.get("api_key")
+model_name = cfg.get("model", "gpt-4")
 ```
 
----
-
-## 插件配置
-
-### 定义配置 Schema
-
-在插件目录下创建 `_conf_schema.json`：
-
-```json
-{
-  "token": {
-    "description": "Bot Token",
-    "type": "string"
-  },
-  "enable": {
-    "description": "是否启用",
-    "type": "bool",
-    "default": true
-  },
-  "sub_config": {
-    "description": "嵌套配置",
-    "type": "object",
-    "items": {
-      "name": {
-        "description": "名称",
-        "type": "string"
-      }
-    }
-  }
-}
-```
-
-配置类型支持：`string`、`text`、`int`、`float`、`bool`、`object`、`list`、`dict`、`template_list`、`file`
-
-### 在插件中使用配置
+### 7.3 Conversation Management
 
 ```python
-from astrbot.api import AstrBotConfig
+# Get current conversation ID
+curr_cid = await self.context.conversation_manager.get_curr_conversation_id(
+    event.unified_msg_origin
+)
 
-class ConfigPlugin(Star):
-    def __init__(self, context: Context, config: AstrBotConfig):
-        super().__init__(context)
-        self.config = config
-        print(self.config["token"])
-        # self.config.save_config() # 保存配置
+# Get conversation history
+conversation = await self.context.conversation_manager.get_conversation(
+    event.unified_msg_origin,
+    curr_cid
+)
+
+# Create new conversation
+new_cid = await self.context.conversation_manager.new_conversation(
+    event.unified_msg_origin,
+    user_id=event.get_user_id(),
+)
+
+# Get messages in conversation
+messages = await self.context.conversation_manager.get_messages(
+    event.unified_msg_origin,
+    curr_cid,
+    limit=20,
+)
 ```
 
-### _special 字段
+### 7.4 Platform & User Info
 
-`_special` 字段用于调用 AstrBot 提供的可视化选取功能：
+```python
+# Get user ID
+user_id = event.get_user_id()
 
-- `select_provider` - 模型提供商选取
-- `select_provider_tts` - TTS 提供商选取
-- `select_provider_stt` - STT 提供商选取
-- `select_persona` - 人格选取
-- `select_knowledgebase` - 知识库选取
+# Get bot's own ID (for @ detection)
+self_id = event.get_self_id()
+
+# Get platform
+platform = event.get_platform()
+
+# Get message origin (unique per chat)
+origin = event.unified_msg_origin
+```
+
+### 7.5 LLM Access
+
+```python
+# Create an LLM request
+from astrbot.api.provider import ProviderRequest
+
+request = ProviderRequest(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+response = await self.context.provider_manager.text_to_text(request)
+await event.reply(response.message.content)
+```
+
+### 7.6 Storage (KV Store)
+
+```python
+# Get the storage manager
+storage = self.context.get_storage()
+
+# Set a value
+await storage.set("counter", 0)
+
+# Get a value
+count = await storage.get("counter", default=0)
+
+# Delete a value
+await storage.delete("counter")
+
+# Using scope for namespacing
+await storage.set("my_plugin:counter", 1, scope="global")
+await storage.set("my_plugin:user_123", 5, scope="user", scope_id="123")
+```
+
+### 7.7 Other Context APIs
+
+```python
+# Get the platform message history manager
+history_mgr = self.context.platform_message_history_mgr
+
+# Get the persona manager
+persona_mgr = self.context.persona_manager
+
+# Get the database
+db: BaseDatabase = self.context.database
+
+# Get the LLM tool manager
+tool_mgr = self.context.tool_manager
+
+# Access AstrBot's event bus
+event_bus = self.context.event_bus
+
+# Register a web API endpoint
+self.context.register_web_api("/my_plugin/api", handler_func, ["GET"], "Api description")
+```
 
 ---
 
-## 插件国际化
+## 8. LLM/Tool Integration
 
-插件可以在 `.astrbot-plugin/i18n/` 目录下提供语言文件：
+Plugins can expose functions as LLM tools, allowing the AI to call plugin functionality.
 
+### 8.1 Registering a Tool
+
+```python
+from astrbot.core.provider.func_tool_manager import FunctionTool
+
+class MyPlugin(star.Star):
+    def __init__(self, context: star.Context, config: dict | None = None):
+        super().__init__(context, config)
+        # Register tools on init
+        self.context.tool_manager.register(MyTool(self))
+
+class MyTool(FunctionTool):
+    def __init__(self, plugin):
+        super().__init__()
+        self.plugin = plugin
+
+    async def execute(self, **kwargs) -> str:
+        """Execute the tool"""
+        query = kwargs.get("query", "")
+        return f"Search result for: {query}"
+
+    def get_desc(self) -> str:
+        return "Search the web for information"
+
+    def get_params_schema(self) -> dict:
+        return {
+            "query": {
+                "type": "string",
+                "description": "The search query",
+                "required": True,
+            }
+        }
 ```
-your_plugin/
-  metadata.yaml
-  _conf_schema.json
-  .astrbot-plugin/
-    i18n/
-      zh-CN.json
-      en-US.json
-```
 
-### 元数据翻译
+### 8.2 Tool Result to LLM
 
-```json
-{
-  "metadata": {
-    "display_name": "天气助手",
-    "short_desc": "一句话天气查询。",
-    "desc": "查询天气并提供出行建议。"
-  }
-}
-```
+Tools can return strings or structured data that becomes part of the LLM context:
 
-### 配置项翻译
+```python
+async def execute(self, **kwargs) -> str | dict:
+    # String result
+    return "Simple result"
 
-```json
-{
-  "config": {
-    "enable": {
-      "description": "启用",
-      "hint": "是否启用这个插件。"
+    # Structured result (becomes part of conversation)
+    return {
+        "result": "data",
+        "items": ["a", "b", "c"],
     }
-  }
-}
 ```
 
 ---
 
-## 插件页面 (Pages)
+## 9. Plugin Pages (Dashboard Integration)
 
-插件可以通过 `pages/` 目录暴露 Dashboard 页面。
+Plugins can register pages that appear in the AstrBot web dashboard.
 
-### 目录结构
+### 9.1 Page Registration
 
-```
-your_plugin/
-  main.py
-  pages/
-    settings/
-      index.html
-    dashboard/
-      index.html
-      app.js
-      style.css
+In `metadata.yaml`:
+
+```yaml
+pages:
+  - path: /my_plugin
+    name: My Plugin
+    icon: plugin_icon
+    file: /path/to/page.html
 ```
 
-### 前端示例
+### 9.2 Bridge API (Frontend → Plugin)
 
-```html
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <title>Plugin Page Demo</title>
-  </head>
-  <body>
-    <button id="ping">Ping</button>
-    <pre id="output"></pre>
-    <script type="module" src="./app.js"></script>
-  </body>
-</html>
-```
+The dashboard page communicates with the plugin via the Bridge API:
 
-```js
-const bridge = window.AstrBotPluginPage;
-const output = document.getElementById("output");
+```javascript
+// In your page.html
+const bridge = window.AstrBotBridge;
 
-const context = await bridge.ready();
-output.textContent = JSON.stringify(context, null, 2);
+// Call plugin handler
+const result = await bridge.call("my_plugin.get_stats", { key: "value" });
 
-document.getElementById("ping").addEventListener("click", async () => {
-  const result = await bridge.apiGet("ping");
-  output.textContent = JSON.stringify(result, null, 2);
+// Listen for plugin events
+bridge.on("my_plugin.update", (data) => {
+    console.log("Update received:", data);
 });
 ```
 
-### 注册后端 API
+### 9.3 Plugin Handler for Bridge API
 
 ```python
-from quart import jsonify
-from astrbot.api.star import Context, Star
-
-PLUGIN_NAME = "your_plugin"
-
-class MyPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
-        context.register_web_api(
-            f"/{PLUGIN_NAME}/ping",
-            self.page_ping,
-            ["GET"],
-            "Page ping",
-        )
-
-    async def page_ping(self):
-        return jsonify({"message": "pong"})
-```
-
-### Bridge API
-
-- `ready()` - 等待 bridge 就绪
-- `getContext()` - 获取当前上下文
-- `getLocale()` - 获取当前语言
-- `getI18n()` - 获取 i18n 资源
-- `t(key, fallback)` - 翻译文案
-- `onContext(handler)` - 监听上下文变化
-- `apiGet(endpoint, params)` - GET 请求
-- `apiPost(endpoint, body)` - POST 请求
-- `upload(endpoint, file)` - 文件上传
-- `download(endpoint, params, filename)` - 文件下载
-- `subscribeSSE(endpoint, handlers, params)` - SSE 订阅
-- `unsubscribeSSE(subscriptionId)` - 取消 SSE 订阅
-
----
-
-## AI 与 LLM 调用
-
-### 获取提供商
-
-```python
-# 获取当前使用的提供商
-prov = self.context.get_using_provider(umo=event.unified_msg_origin)
-
-# 根据 ID 获取
-prov = self.context.get_provider_by_id(provider_id="xxxx")
-
-# 获取所有提供商
-all_provs = self.context.get_all_providers()
-```
-
-### 调用 LLM
-
-```python
-llm_resp = await prov.text_chat(
-    prompt="Hi!",
-    context=[
-        {"role": "user", "content": "balabala"},
-        {"role": "assistant", "content": "response balabala"}
-    ],
-    system_prompt="You are a helpful assistant."
-)
-```
-
-### 获取其他类型提供商
-
-```python
-# 语音识别
-stt = self.context.get_using_stt_provider(umo=event.unified_msg_origin)
-all_stt = self.context.get_all_stt_providers()
-
-# 语音合成
-tts = self.context.get_using_tts_provider(umo=event.unified_msg_origin)
-all_tts = self.context.get_all_tts_providers()
-
-# 嵌入
-all_embedding = self.context.get_all_embedding_providers()
-```
-
-### 对话管理器
-
-```python
-conv_mgr = self.context.conversation_manager
-curr_cid = await conv_mgr.get_curr_conversation_id(uid)
-conversation = await conv_mgr.get_conversation(uid, curr_cid)
-```
-
-### 人格管理器
-
-```python
-persona_mgr = self.context.persona_manager
-personas = persona_mgr.get_all_personas()
-persona = persona_mgr.get_persona(persona_id)
+async def handle_web_request(self, path: str, data: dict) -> dict:
+    if path == "get_stats":
+        return {"users": 42, "active": True}
+    raise ValueError(f"Unknown path: {path}")
 ```
 
 ---
 
-## 函数工具
+## 10. Internationalization (i18n)
 
-### 以类的形式定义（推荐）
+Plugins can provide translations for multiple languages.
 
-```python
-from astrbot.api import FunctionTool
-from dataclasses import dataclass, field
+### 10.1 Translation Files
 
-@dataclass
-class HelloWorldTool(FunctionTool):
-    name: str = "hello_world"
-    description: str = "Say hello to the world."
-    parameters: dict = field(default_factory=lambda: {
-        "type": "object",
-        "properties": {
-            "greeting": {
-                "type": "string",
-                "description": "The greeting message.",
-            },
-        },
-        "required": ["greeting"],
-    })
+Create `i18n/` directory in your plugin:
 
-    async def run(self, event: AstrMessageEvent, greeting: str):
-        return f"{greeting}, World!"
+```
+my_plugin/
+├── i18n/
+│   ├── en.json
+│   ├── zh.json
+│   └── ja.json
+└── main.py
 ```
 
-注册工具：
+### 10.2 Translation File Format
 
-```python
-class MyPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
-        self.context.add_llm_tools(HelloWorldTool())
+**en.json:**
+```json
+{
+    "greeting": "Hello, {name}!",
+    "farewell": "Goodbye!",
+    "items_count": "You have {count} items"
+}
 ```
 
-### 以装饰器形式定义
-
-```python
-@filter.llm_tool(name="get_weather")
-async def get_weather(self, event: AstrMessageEvent, location: str) -> MessageEventResult:
-    '''获取天气信息。
-
-    Args:
-        location(string): 地点
-    '''
-    yield event.plain_result("天气信息: " + resp)
+**zh.json:**
+```json
+{
+    "greeting": "你好，{name}！",
+    "farewell": "再见！",
+    "items_count": "你有 {count} 个物品"
+}
 ```
 
----
-
-## 会话控制
-
-会话控制用于需要多轮对话的场景，如成语接龙、游戏等。
+### 10.3 Using Translations in Code
 
 ```python
-from astrbot.core.utils.session_waiter import session_waiter, SessionController
+# In your plugin code
+from astrbot.core.config.i18n_utils import _
 
-@filter.command("成语接龙")
-async def handle_idiom(self, event: AstrMessageEvent):
-    yield event.plain_result("请发送一个成语~")
+# Get translated string (uses user's locale automatically)
+greeting = _("greeting", name="Alice")
 
-    @session_waiter(timeout=60, record_history_chains=False)
-    async def idiom_waiter(controller: SessionController, event: AstrMessageEvent):
-        idiom = event.message_str
-
-        if idiom == "退出":
-            await event.send(event.plain_result("已退出~"))
-            controller.stop()
-            return
-
-        await event.send(event.plain_result(f"你说了: {idiom}"))
-        controller.keep(timeout=60, reset_timeout=True)
-
-    try:
-        await idiom_waiter(event)
-    except TimeoutError:
-        yield event.plain_result("你超时了！")
+# In metadata.yaml inline i18n
+i18n:
+  en:
+    desc: "Hello World Plugin"
+  zh:
+    desc: "你好世界插件"
 ```
 
-### SessionController 方法
+### 10.4 Dashboard i18n
 
-- `keep(timeout, reset_timeout)` - 保持会话，重置超时时间
-- `stop()` - 结束会话
-- `get_history_chains()` - 获取历史消息链
+The dashboard's i18n system supports dynamic injection from plugins:
 
-### 自定义会话 ID 算子
-
-```python
-from astrbot.core.utils.session_waiter import SessionFilter
-
-class GroupFilter(SessionFilter):
-    def filter(self, event: AstrMessageEvent) -> str:
-        return event.get_group_id() if event.get_group_id() else event.unified_msg_origin
-
-await idiom_waiter(event, session_filter=GroupFilter())
+```javascript
+// In your page.html
+const i18n = window.AstrBotI18n.get();
+const greeting = i18n.t("plugin_my_plugin.greeting", { name: "Alice" });
 ```
 
 ---
 
-## 文转图
+## 11. Plugin Lifecycle
 
-### 基本用法
+### 11.1 Initialization
 
 ```python
-@filter.command("image")
-async def render_image(self, event: AstrMessageEvent, text: str):
-    url = await self.text_to_image(text)
-    yield event.image_result(url)
+class MyPlugin(star.Star):
+    async def initialize(self) -> None:
+        """Called when the plugin is activated"""
+        # Setup code: open connections, load data, register handlers
+        await self._load_data()
+        self.context.logger.info("MyPlugin initialized!")
 ```
 
-### 自定义 HTML 模板
+### 11.2 Termination
 
 ```python
-TMPL = '''
-<div style="font-size: 32px;">
-<h1 style="color: black">Todo List</h1>
-<ul>
-{% for item in items %}
-    <li>{{ item }}</li>
-{% endfor %}
-</ul>
-</div>
-'''
-
-@filter.command("todo")
-async def custom_t2i(self, event: AstrMessageEvent):
-    url = await self.html_render(TMPL, {"items": ["吃饭", "睡觉", "玩原神"]})
-    yield event.image_result(url)
+    async def terminate(self) -> None:
+        """Called when the plugin is deactivated or reloaded"""
+        # Cleanup code: close connections, save state
+        await self._save_data()
+        self.context.logger.info("MyPlugin terminated!")
 ```
 
----
+### 11.3 Full Lifecycle Order
 
-## 事件钩子
-
-### Bot 初始化完成
-
-```python
-@filter.on_astrbot_loaded()
-async def on_loaded(self):
-    print("AstrBot 初始化完成")
 ```
+Plugin Load:
+  1. Star.__init__(context, config)
+  2. metadata.yaml read
+  3. @register decorators scan
+  4. Star.initialize()
+  5. Handlers registered in star_handlers_registry
 
-### LLM 请求时
-
-```python
-from astrbot.api.provider import ProviderRequest
-
-@filter.on_llm_request()
-async def on_request(self, event: AstrMessageEvent, req: ProviderRequest):
-    req.system_prompt += "自定义 system_prompt"
-```
-
-### LLM 请求完成时
-
-```python
-from astrbot.api.provider import LLMResponse
-
-@filter.on_llm_response()
-async def on_response(self, event: AstrMessageEvent, resp: LLMResponse):
-    print(resp)
-```
-
-### 发送消息前
-
-```python
-@filter.on_decorating_result()
-async def on_decorating(self, event: AstrMessageEvent):
-    result = event.get_result()
-    chain = result.chain
-    chain.append(Comp.Plain("!"))
-```
-
-### 发送消息后
-
-```python
-@filter.after_message_sent()
-async def after_sent(self, event: AstrMessageEvent):
-    pass
-```
-
-### Agent 钩子 (v4.23.1+)
-
-```python
-# Agent 开始运行时
-@filter.on_agent_begin()
-async def on_begin(self, event: AstrMessageEvent, run_context):
-    print("Agent 开始运行")
-
-# LLM 工具调用前
-@filter.on_using_llm_tool()
-async def on_tool_call(self, event: AstrMessageEvent, tool, tool_args):
-    print(tool.name, tool_args)
-
-# Agent 运行完成时
-@filter.on_agent_done()
-async def on_done(self, event: AstrMessageEvent, run_context, resp):
-    print(resp)
+Plugin Unload/Reload:
+  1. Star.terminate()
+  2. Handlers removed from star_handlers_registry
 ```
 
 ---
 
-## 其他功能
+## 12. Complete Example: Hello World
 
-### 获取消息平台实例
+### Directory Structure
+
+```
+hello_world/
+├── __init__.py
+├── main.py
+└── metadata.yaml
+```
+
+### metadata.yaml
+
+```yaml
+name: hello_world
+desc: A simple hello world plugin demonstrating the plugin API
+author: Developer
+version: 1.0.0
+astrbot_version: ">=4.0.0"
+```
+
+### main.py
+
+```python
+"""
+Hello World Plugin for AstrBot
+
+Demonstrates:
+- Basic command handler
+- Event message handler
+- Config access
+- i18n
+"""
+
+from astrbot.api import star, register
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.message_components import Plain
+
+
+class HelloWorld(star.Star):
+    """Hello World plugin demonstrating AstrBot plugin development"""
+
+    def __init__(self, context: star.Context, config: dict | None = None):
+        super().__init__(context, config)
+        self.context.logger.info("HelloWorld plugin loaded!")
+
+    async def initialize(self) -> None:
+        """Called when plugin is activated"""
+        self.context.logger.info("HelloWorld initializing...")
+
+    async def terminate(self) -> None:
+        """Called when plugin is deactivated"""
+        self.context.logger.info("HelloWorld terminating...")
+
+    # ─── Command Handlers ───────────────────────────────────────────────
+
+    @register.register_command("hello")
+    async def cmd_hello(self, event: AstrMessageEvent):
+        """Say hello to the user
+        
+        Usage: @bot hello [name]
+        If name is omitted, defaults to "World"
+        """
+        message = event.get_message_str().strip()
+        if message == "hello":
+            name = "World"
+        else:
+            # Extract name after "hello "
+            name = message[len("hello "):].strip() or "World"
+
+        await event.reply(f"Hello, {name}! 👋")
+
+    @register.register_command("hello multilang", alias={"hi"})
+    async def cmd_hello_multilang(self, event: AstrMessageEvent):
+        """Say hello in the user's language"""
+        from astrbot.core.config.i18n_utils import _
+        
+        user_lang = self.context.get_config().get("language", "en")
+        greeting = _("hello_greeting", default="Hello!")
+        
+        await event.reply(greeting)
+
+    @register.register_command("user add")
+    async def cmd_add_user(self, event: AstrMessageEvent, name: str):
+        """Add a user to the system
+        
+        Usage: /user add <name>
+        """
+        # Store in KV store
+        storage = self.context.get_storage()
+        users = await storage.get("users", default=[])
+        users.append(name)
+        await storage.set("users", users)
+        
+        await event.reply(f"✅ User '{name}' added! Total users: {len(users)}")
+
+    @register.register_command("user list")
+    async def cmd_list_users(self, event: AstrMessageEvent):
+        """List all users"""
+        storage = self.context.get_storage()
+        users = await storage.get("users", default=[])
+        
+        if not users:
+            await event.reply("📋 No users yet. Use /user add <name> to add one!")
+        else:
+            user_list = "\n".join(f"  • {name}" for name in users)
+            await event.reply(f"📋 Users ({len(users)}):\n{user_list}")
+
+    @register.register_command("user count")
+    async def cmd_user_count(self, event: AstrMessageEvent):
+        """Get the total user count"""
+        storage = self.context.get_storage()
+        users = await storage.get("users", default=[])
+        await event.reply(f"👥 Total users: {len(users)}")
+
+    # ─── Event Handlers ─────────────────────────────────────────────────
+
+    @filter.event_message_type(filter.EventMessageType.TEXT)
+    @register.register_regex(r"^goodbye(?:\s+(.+))?$")
+    async def handle_goodbye(self, event: AstrMessageEvent):
+        """Responds to 'goodbye' or 'goodbye <name>'"""
+        message = event.get_message_str()
+        name = message.replace("goodbye", "").strip() or "World"
+        await event.reply(f"Goodbye, {name}! 👋")
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def handle_mention(self, event: AstrMessageEvent):
+        """Handle @mentions when no command matches"""
+        from astrbot.api.message_components import At
+        
+        messages = event.get_messages()
+        if any(isinstance(m, At) and str(m.qq) == str(event.get_self_id()) for m in messages):
+            # Bot was mentioned but no command matched
+            pass  # Do nothing, let other handlers process
+
+    # ─── LLM Hooks ──────────────────────────────────────────────────────
+
+    @register.register_on_llm_response()
+    async def on_llm_response(self, event: AstrMessageEvent, response):
+        """Log LLM responses for debugging"""
+        self.context.logger.debug(f"LLM response: {response.message.content[:100]}...")
+```
+
+---
+
+## 13. Plugin Loading & Management
+
+### 13.1 Plugin Search Paths
+
+| Environment | Path |
+|-------------|------|
+| Production | `data/stars/` |
+| Development | `stars/` (relative to project root) |
+| Config | `data/stars_path` in `config.yaml` |
+
+### 13.2 Plugin Manager API
+
+```python
+# In a handler or external code
+from astrbot.core.star.star_manager import StarManager
+
+star_manager: StarManager = context.star_manager
+
+# Load a plugin
+await star_manager.load_star("plugin_name")
+
+# Unload a plugin
+await star_manager.unload_star("plugin_name")
+
+# Reload a plugin
+await star_manager.reload_star("plugin_name")
+
+# Get plugin metadata
+metadata = star_manager.get_star_metadata("plugin_name")
+
+# List all loaded plugins
+plugins = star_manager.get_all_stars()
+```
+
+### 13.3 Plugin Dependencies
+
+If your plugin requires external packages, create `requirements.txt`:
+
+```
+requests>=2.28.0
+Pillow>=9.0.0
+```
+
+AstrBot will prompt to install them on plugin load.
+
+### 13.4 Reserved Plugins
+
+System plugins are marked as `reserved=True` and cannot be disabled:
+
+```python
+# In star_manager.py
+if metadata.reserved:
+    raise ValueError("Cannot disable reserved plugin")
+```
+
+---
+
+## 14. Filter Reference
+
+### Available Filters
+
+| Filter | Decorator | Purpose |
+|--------|-----------|---------|
+| `CommandFilter` | `@register.register_command` | Match command name with parameters |
+| `CommandGroupFilter` | `@register.register_command_group` | Group commands with sub-commands |
+| `RegexFilter` | `@register.register_regex` | Match regex pattern |
+| `PermissionTypeFilter` | `@filter.permission()` | Check user permission level |
+| `EventMessageTypeFilter` | `@filter.event_message_type()` | Match message type (TEXT/IMAGE/etc.) |
+| `PlatformAdapterTypeFilter` | `@filter.platform_adapter_type()` | Match specific platform (QQ/Telegram/etc.) |
+| `CustomFilter` | `@register.register_custom_filter` | Custom filter logic |
+
+### All `@filter.*` Decorators
 
 ```python
 from astrbot.api.event import filter
-from astrbot.api.platform import AiocqhttpAdapter
 
-platform = self.context.get_platform(filter.PlatformAdapterType.AIOCQHTTP)
+@filter.event_message_type(event_message_type, *, priority=0)
+@filter.permission(permission_type, *, raise_error=True)
+@filter.platform_adapter_type(platform_type)
 ```
 
-### 调用 QQ 协议端 API
+### All `@register.*` Decorators
 
 ```python
-if event.get_platform_name() == "aiocqhttp":
-    from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-    assert isinstance(event, AiocqhttpMessageEvent)
-    client = event.bot
-    payloads = {"message_id": event.message_obj.message_id}
-    ret = await client.api.call_action('delete_msg', **payloads)
+from astrbot.api import register
+
+# Message handlers
+@register.register_command(name, sub_command=None, alias=None, **kwargs)
+@register.register_command_group(name, sub_command=None, alias=None, **kwargs)
+@register.register_regex(pattern, **kwargs)
+@register.register_custom_filter(filter_instance, raise_error=True, **kwargs)
+
+# Event hooks
+@register.register_on_astrbot_loaded()
+@register.register_on_platform_loaded()
+@register.register_on_plugin_loaded()
+@register.register_on_plugin_unloaded()
+@register.register_on_plugin_error()
+@register.register_on_llm_request()
+@register.register_on_llm_response()
+@register.register_on_waiting_llm_request()
+@register.register_on_agent_begin()
+@register.register_on_agent_done()
+@register.register_on_decorating_result()
+@register.register_on_calling_func_tool()
+@register.register_on_using_llm_tool()
+@register.register_on_llm_tool_respond()
+@register.register_after_message_sent()
+
+# LLM tools
+@register.register_llm_tool(name, desc=None, **kwargs)
 ```
 
-### 注册异步任务
+---
+
+## 15. Event Type Reference
+
+| EventType | Description | Triggered When |
+|-----------|-------------|----------------|
+| `OnAstrBotLoadedEvent` | AstrBot startup complete | Bot process starts |
+| `OnPlatformLoadedEvent` | Platform adapter loaded | Each platform (QQ/Telegram/etc.) initializes |
+| `AdapterMessageEvent` | Incoming platform message | User sends any message |
+| `OnWaitingLLMRequestEvent` | Before LLM lock acquisition | Waiting to call LLM (notification only) |
+| `OnLLMRequestEvent` | LLM about to be called | LLM request initiated |
+| `OnLLMResponseEvent` | LLM response received | LLM returns a response |
+| `OnAgentBeginEvent` | Agent execution starts | Agent begins running |
+| `OnAgentDoneEvent` | Agent execution completes | Agent finishes |
+| `OnDecoratingResultEvent` | Message about to be sent | Pre-send formatting |
+| `OnCallingFuncToolEvent` | Tool function called | LLM requests tool execution |
+| `OnUsingLLMToolEvent` | LLM tool invoked | Tool starts executing |
+| `OnLLMToolRespondEvent` | Tool execution returns | Tool completes |
+| `OnAfterMessageSentEvent` | Message sent | After bot sends a message |
+| `OnPluginErrorEvent` | Plugin throws exception | Any unhandled plugin error |
+| `OnPluginLoadedEvent` | Plugin finishes loading | Plugin activation complete |
+| `OnPluginUnloadedEvent` | Plugin unloaded | Plugin deactivation complete |
+
+---
+
+## Appendix: Built-in Plugin Example
+
+The internal `astrbot` plugin (in `astrbot/builtin_stars/astrbot/`) is the reference implementation:
+
+```
+astrbot/builtin_stars/astrbot/
+├── __init__.py
+├── main.py              # Main Star class with commands
+├── metadata.yaml        # name: astrbot, version: 4.1.0
+└── long_term_memory.py  # Additional module
+```
+
+Key patterns from `main.py`:
+
+```python
+class Main(star.Star):
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=maxsize)
+    async def handle_session_control_agent(self, event: AstrMessageEvent):
+        """Highest priority handler for session control"""
+        ...
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=maxsize - 1)
+    async def handle_empty_mention(self, event: AstrMessageEvent):
+        """Handle @bot with no command — wait for next message"""
+        ...
+
+    @register.register_command("clear")
+    async def cmd_clear(self, event: AstrMessageEvent):
+        """Clear conversation history"""
+        ...
+```
+
+---
+
+## Appendix: Common Patterns
+
+### Pattern: Rate Limiting
+
+```python
+import time
+from collections import defaultdict
+
+class MyPlugin(star.Star):
+    def __init__(self, context, config):
+        super().__init__(context, config)
+        self._rate_limits = defaultdict(list)
+
+    def _check_rate_limit(self, user_id: str, max_calls: int = 5, window: int = 60) -> bool:
+        now = time.time()
+        self._rate_limits[user_id] = [
+            t for t in self._rate_limits[user_id] if now - t < window
+        ]
+        if len(self._rate_limits[user_id]) >= max_calls:
+            return False
+        self._rate_limits[user_id].append(now)
+        return True
+```
+
+### Pattern: User State Machine
+
+```python
+class MyPlugin(star.Star):
+    # State storage: user_id -> state name
+    _user_states: dict[str, str] = {}
+
+    @register.register_command("step1")
+    async def cmd_step1(self, event: AstrMessageEvent):
+        user_id = event.get_user_id()
+        self._user_states[user_id] = "step1"
+        await event.reply("Step 1 complete. Now say 'next' to continue.")
+
+    @register.register_regex(r"^next$")
+    async def handle_next(self, event: AstrMessageEvent):
+        user_id = event.get_user_id()
+        state = self._user_states.get(user_id)
+        if state == "step1":
+            await event.reply("Proceeding to step 2...")
+```
+
+### Pattern: Async Background Task
 
 ```python
 import asyncio
 
-class TaskPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
-        asyncio.create_task(self.my_task())
+class MyPlugin(star.Star):
+    def __init__(self, context, config):
+        super().__init__(context, config)
+        self._background_tasks: list[asyncio.Task] = []
 
-    async def my_task(self):
-        await asyncio.sleep(1)
-        print("Hello")
-```
+    async def initialize(self):
+        task = asyncio.create_task(self._background_loop())
+        self._background_tasks.append(task)
 
-### 获取所有插件
+    async def terminate(self):
+        for task in self._background_tasks:
+            task.cancel()
 
-```python
-plugins = self.context.get_all_stars()
-```
-
-### 获取所有平台
-
-```python
-from astrbot.api.platform import Platform
-platforms = self.context.platform_manager.get_insts()
+    async def _background_loop(self):
+        while True:
+            await asyncio.sleep(60)
+            # Do periodic work
 ```
 
 ---
 
-## 发布插件
-
-### 准备发布
-
-1. 确保插件压缩包（zip）大小不超过 **16MB**
-2. 压缩图片等静态资源
-3. 清理不必要的文件（`.git`、`__pycache__`、`node_modules` 等）
-4. 在仓库根目录添加 `.gitignore`
-
-### 提交到插件市场
-
-1. 前往 [AstrBot 插件市场](https://plugins.astrbot.app)
-2. 点击右下角 `+` 按钮
-3. 填写基本信息、作者信息、仓库信息
-4. 点击 `提交到 GITHUB` 按钮
-5. 在 GitHub Issue 页面确认信息后点击 `Create`
-
----
-
-## 平台适配矩阵
-
-| 平台 | At | Plain | Image | Record | Video | Reply | 主动消息 |
-|------|----|----|----|----|----|----|----|
-| QQ 个人号 (aiocqhttp) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Telegram | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| QQ 官方接口 | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 飞书 | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
-| 企业微信 | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 钉钉 | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-
-> [!NOTE]
-> QQ 个人号 (aiocqhttp) 支持所有消息类型，包括戳一戳、合并转发等。钉钉图片仅支持 HTTP 链接。
-
----
-
-## 相关资源
-
-- [新插件开发指南](./zh/dev/star/plugin-new.md)
-- [旧插件开发指南](./zh/dev/star/plugin.md)
-- [插件配置](./zh/dev/star/guides/plugin-config.md)
-- [插件国际化](./zh/dev/star/guides/plugin-i18n.md)
-- [插件页面](./zh/dev/star/guides/plugin-pages.md)
-- [发布插件](./zh/dev/star/plugin-publish.md)
-- [开发者 QQ 群](./zh/dev/star/plugin-new.md): `975206796`
+*Document version: 1.0 — Based on AstrBot v4.x*
+*Generated from source analysis of `astrbot/core/star/` and `astrbot/builtin_stars/astrbot/`*
