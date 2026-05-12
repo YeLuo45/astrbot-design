@@ -12,6 +12,7 @@ export default defineConfig({
       { text: "Dashboard", link: "/dashboard" },
             { text: 'MCP', link: '/mcp' },
             { text: 'Agent Runner', link: '/agent-runner' },
+            { text: 'Platform Adapter', link: '/platform-adapter' },
             { text: 'Extensions', link: '/extension-directions' },
             { text: 'Plugin Guide', link: '/plugin-development' }
     ],
@@ -26,6 +27,7 @@ export default defineConfig({
           { text: "Dashboard 架构", link: "/dashboard" },
           { text: "MCP 集成", link: "/mcp" },
           { text: "Agent 执行器", link: "/agent-runner" },
+          { text: "平台适配器", link: "/platform-adapter" },
           { text: "扩展方向", link: "/extension-directions" },
           { text: "插件开发指南", link: "/plugin-development" },
         ],
