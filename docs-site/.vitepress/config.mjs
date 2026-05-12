@@ -8,6 +8,7 @@ export default defineConfig({
     nav: [
       { text: "Home", link: "/" },
       { text: "Architecture", link: "/architecture" },
+      { text: "API", link: "/api" },
       { text: "Extensions", link: "/extension-directions" },
       { text: "Plugin Guide", link: "/plugin-development" },
     ],
@@ -18,6 +19,7 @@ export default defineConfig({
         items: [
           { text: "Home", link: "/" },
           { text: "架构分析", link: "/architecture" },
+          { text: "API 接口分析", link: "/api" },
           { text: "扩展方向", link: "/extension-directions" },
           { text: "插件开发指南", link: "/plugin-development" },
         ],
