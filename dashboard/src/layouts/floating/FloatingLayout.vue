@@ -51,6 +51,7 @@ const chatPanelRight = ref(24);
 const chatPanelBottom = ref(80);
 const isChatDragging = ref(false);
 const isChatResizing = ref(false);
+const chatPanelTheme = ref<'dark' | 'light'>('dark');
 
 // Keyboard navigation state
 const focusedNavIndex = ref(-1);
@@ -242,6 +243,11 @@ function onChatResizeEnd() {
 function navigateTo(path: string) {
   router.push(path);
 }
+
+// Toggle chat panel theme
+function toggleChatTheme() {
+  chatPanelTheme.value = chatPanelTheme.value === 'dark' ? 'light' : 'dark';
+}
 </script>
 
 <template>
@@ -314,6 +320,7 @@ function navigateTo(path: string) {
       <div
         v-if="chatFloating"
         class="floating-chat-panel"
+        :class="chatPanelTheme === 'dark' ? 'theme-dark' : 'theme-light'"
         :style="{
           position: 'fixed',
           right: chatPanelRight + 'px',
@@ -326,12 +333,16 @@ function navigateTo(path: string) {
         <!-- Drag Handle -->
         <div
           class="chat-panel-header"
+          :class="chatPanelTheme === 'dark' ? 'theme-dark' : 'theme-light'"
           style="cursor: move;"
           @mousedown.left="startChatDrag"
         >
           <v-icon size="18" class="mr-2">mdi-chat</v-icon>
           <span class="text-body-2">Chat</span>
           <v-spacer />
+          <v-btn icon size="x-small" variant="text" @click="toggleChatTheme">
+            <v-icon size="18">{{ chatPanelTheme === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+          </v-btn>
           <v-btn icon size="x-small" variant="text" @click="chatFloating = false">
             <v-icon size="18">mdi-close</v-icon>
           </v-btn>
@@ -423,6 +434,17 @@ function navigateTo(path: string) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.floating-chat-panel.theme-dark {
+  background: #1e1e2e;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.floating-chat-panel.theme-light {
+  background: #fafafa;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .chat-panel-header {
@@ -433,6 +455,17 @@ function navigateTo(path: string) {
   color: rgb(var(--v-theme-on-primary));
   height: 40px;
   flex-shrink: 0;
+}
+
+.chat-panel-header.theme-dark {
+  background: #2d2d3d;
+  color: #e0e0e0;
+}
+
+.chat-panel-header.theme-light {
+  background: #ffffff;
+  color: #333333;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .chat-panel-resize-handle {
