@@ -1,0 +1,29 @@
+import { defineConfig } from "vitepress";
+
+export default defineConfig({
+  title: "AstrBot Design",
+  description: "AstrBot 架构分析与扩展设计文档",
+  
+  themeConfig: {
+    nav: [
+      { text: "Home", link: "/" },
+      { text: "Architecture", link: "/architecture" },
+      { text: "Extensions", link: "/extension-directions" },
+      { text: "Plugin Guide", link: "/plugin-development" },
+    ],
+    
+    sidebar: [
+      {
+        text: "Documentation",
+        items: [
+          { text: "Home", link: "/" },
+          { text: "架构分析", link: "/architecture" },
+          { text: "扩展方向", link: "/extension-directions" },
+          { text: "插件开发指南", link: "/plugin-development" },
+        ],
+      },
+    ],
+  },
+
+  rewrites: {},
+});
