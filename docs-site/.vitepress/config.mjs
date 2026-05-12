@@ -50,5 +50,7 @@ export default defineConfig({
     },
   },
 
+  base: "/astrbot-design/",
+
   rewrites: {},
 });
