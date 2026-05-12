@@ -10,9 +10,10 @@ export default defineConfig({
       { text: "Architecture", link: "/architecture" },
       { text: "API", link: "/api" },
       { text: "Dashboard", link: "/dashboard" },
-      { text: "MCP", link: "/mcp" },
-      { text: "Extensions", link: "/extension-directions" },
-      { text: "Plugin Guide", link: "/plugin-development" },
+            { text: 'MCP', link: '/mcp' },
+            { text: 'Agent Runner', link: '/agent-runner' },
+            { text: 'Extensions', link: '/extension-directions' },
+            { text: 'Plugin Guide', link: '/plugin-development' }
     ],
     
     sidebar: [
@@ -24,6 +25,7 @@ export default defineConfig({
           { text: "API 接口分析", link: "/api" },
           { text: "Dashboard 架构", link: "/dashboard" },
           { text: "MCP 集成", link: "/mcp" },
+          { text: "Agent 执行器", link: "/agent-runner" },
           { text: "扩展方向", link: "/extension-directions" },
           { text: "插件开发指南", link: "/plugin-development" },
         ],
