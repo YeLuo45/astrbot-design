@@ -7,80 +7,72 @@ hero:
   tagline: "基于 Sonic-Yoda/AstrBot 开源项目"
   image:
     src: /astrbot_banner.png
-    alt: AstrBot Architecture Banner
+    alt: AstrBot Banner
   actions:
     - theme: brand
-      text: 架构分析
+      text: 架构分析 →
       link: /architecture
-    - theme: brand
-      text: 扩展方向
+    - theme: alt
+      text: 扩展方向 →
       link: /extension-directions
-    - theme: brand
-      text: 插件开发指南
+    - theme: alt
+      text: 插件开发 →
       link: /plugin-development
 
 features:
   - icon: 🏗️
     title: 架构分析
-    details: 9个核心模块、4种设计模式，深入解析 AstrBot 系统架构与模块协作
+    details: 9个核心模块、4种设计模式，深入解析系统架构
     link: /architecture
-    linkText: 查看架构文档
 
   - icon: 🔌
     title: HTTP API
-    details: v4.18.0+ API Key 认证，支持 HTTP 请求访问核心能力
+    details: v4.18.0+ API Key 认证，HTTP 访问核心能力
     link: /api
-    linkText: 查看 API 文档
 
   - icon: 📊
-    title: Dashboard 架构
-    details: Vue 3 + TypeScript 前端架构，组件化设计与状态管理
+    title: Dashboard
+    details: Vue 3 + TypeScript 前端，组件化状态管理
     link: /dashboard
-    linkText: 查看 Dashboard 文档
 
   - icon: 🔗
     title: MCP 集成
-    details: v3.5.0+ 支持 MCP 协议，添加多个 MCP 服务器并调用函数工具
+    details: v3.5.0+ MCP 协议，多服务器函数工具调用
     link: /mcp
-    linkText: 查看 MCP 文档
 
   - icon: 🤖
     title: Agent Runner
-    details: Agent 执行器核心逻辑，支持多种 LLM Provider 动态切换
+    details: 多种 LLM Provider 动态切换执行器
     link: /agent-runner
-    linkText: 查看 Agent Runner
 
   - icon: 🌐
     title: Platform Adapter
-    details: 统一平台适配层，支持 Discord、Telegram、QQ 等 10+ 平台
+    details: 统一适配层，支持 10+ 平台接入
     link: /platform-adapter
-    linkText: 查看平台适配器
 
   - icon: 🚀
     title: 扩展方向
-    details: 10个扩展方向、50+ 功能点，涵盖多Agent协作、知识库等
+    details: 10个扩展方向、50+ 功能点规划
     link: /extension-directions
-    linkText: 查看扩展方向
 
   - icon: 🧩
     title: 插件开发
-    details: Star 插件系统完全解析，从创建到发布的完整指南
+    details: Star 插件系统完全指南
     link: /plugin-development
-    linkText: 查看插件开发
-
-  - icon: 📖
-    title: 快速开始
-    details: 本地部署、Docker 安装、云端部署，多种方式快速上手 AstrBot
-    link: /architecture
-    linkText: 开始使用
 ---
 
-## 项目目标
+<div class="home-intro">
 
-基于 AstrBot 开源项目，创建设计文档项目，为后续功能迭代提供规范和参考。
+## 关于本项目
 
-## 文档列表
+基于 [AstrBot](https://github.com/Sonic-Yoda/AstrBot) 开源项目，创建的架构设计与扩展规范文档，为后续功能迭代提供参考依据。
 
-- [架构分析](./architecture) - 9个核心模块、4种设计模式
-- [扩展方向](./extension-directions) - 10个扩展方向、50+功能点
-- [插件开发指南](./plugin-development) - Star 插件系统详解
+### 文档导航
+
+| 文档 | 说明 |
+|------|------|
+| [架构分析](./architecture) | 9个核心模块、4种设计模式 |
+| [扩展方向](./extension-directions) | 10个扩展方向、50+功能点 |
+| [插件开发指南](./plugin-development) | Star 插件系统详解 |
+
+</div>
