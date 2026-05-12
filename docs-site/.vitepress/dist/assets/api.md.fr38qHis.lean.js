@@ -1,0 +1,1 @@
+import{_ as a,o as s,c as i,ae as e}from"./chunks/framework.Co1PSFSm.js";const k=JSON.parse('{"title":"AstrBot HTTP API 分析","description":"","frontmatter":{},"headers":[],"relativePath":"api.md","filePath":"api.md"}'),n={name:"api.md"};function d(l,t,h,p,o,r){return s(),i("div",null,[...t[0]||(t[0]=[e("",50)])])}const g=a(n,[["render",d]]);export{k as __pageData,g as default};

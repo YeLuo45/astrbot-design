@@ -3,20 +3,26 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "AstrBot Design",
   description: "AstrBot 架构分析与扩展设计文档",
-  
+
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+  ],
+
   themeConfig: {
+    logo: "/astrbot_banner.png",
+
     nav: [
       { text: "Home", link: "/" },
       { text: "Architecture", link: "/architecture" },
       { text: "API", link: "/api" },
       { text: "Dashboard", link: "/dashboard" },
-            { text: 'MCP', link: '/mcp' },
-            { text: 'Agent Runner', link: '/agent-runner' },
-            { text: 'Platform Adapter', link: '/platform-adapter' },
-            { text: 'Extensions', link: '/extension-directions' },
-            { text: 'Plugin Guide', link: '/plugin-development' }
+      { text: 'MCP', link: '/mcp' },
+      { text: 'Agent Runner', link: '/agent-runner' },
+      { text: 'Platform Adapter', link: '/platform-adapter' },
+      { text: 'Extensions', link: '/extension-directions' },
+      { text: 'Plugin Guide', link: '/plugin-development' }
     ],
-    
+
     sidebar: [
       {
         text: "Documentation",
@@ -33,6 +39,15 @@ export default defineConfig({
         ],
       },
     ],
+
+    socialLinks: [
+      { icon: "github", link: "https://github.com/Sonic-Yoda/AstrBot" }
+    ],
+
+    footer: {
+      message: "基于 AstrBot 开源项目构建",
+      copyright: "Copyright © 2024-present AstrBot Contributors"
+    },
   },
 
   rewrites: {},

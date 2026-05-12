@@ -1,0 +1,1 @@
+import{_ as a,o as i,c as t,ae as n}from"./chunks/framework.Co1PSFSm.js";const c=JSON.parse('{"title":"AstrBot MCP 集成分析","description":"","frontmatter":{},"headers":[],"relativePath":"mcp.md","filePath":"mcp.md"}'),e={name:"mcp.md"};function l(p,s,h,r,o,k){return i(),t("div",null,[...s[0]||(s[0]=[n("",28)])])}const E=a(e,[["render",l]]);export{c as __pageData,E as default};
