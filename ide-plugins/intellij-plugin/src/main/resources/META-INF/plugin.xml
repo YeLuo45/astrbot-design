@@ -1,0 +1,34 @@
+<!DOCTYPE luckPERSONAL xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xsi:noNamespaceSchemaLocation="https://plugins.jetbrains.com/plugin/">
+    <idea-plugin>
+        <id>com.astrbot.ide.buddy</id>
+        <name>AstrBot Buddy</name>
+        <version>1.0.0</version>
+        <vendor>AstrBot Team</vendor>
+
+        <description>
+            IntelliJ Plugin for AstrBot Development.
+            Features: Status Panel, Plugin Template Generator, Debug Integration.
+        </description>
+
+        <depends>com.intellij.modules.platform</depends>
+
+        <extensions defaultExtensionNs="com.intellij">
+            <toolWindow id="AstrBot Buddy"
+                        secondary="false"
+                        icon="/icons/astrbot.png"
+                        factoryClass="com.astrbot.ide.AstrBotBuddyToolWindowFactory"/>
+        </extensions>
+
+        <actions>
+            <group id="AstrBotBuddy.MainMenu" text="AstrBot Buddy" description="AstrBot Buddy Menu">
+                <add-to-group group-id="MainMenu" anchor="last"/>
+                <action id="AstrBotBuddy.NewPlugin" class="com.astrbot.ide.actions.NewPluginAction" text="New AstrBot Plugin"
+                        description="Generate a new AstrBot plugin from template"/>
+            </group>
+        </actions>
+
+        <projectListeners>
+            <listener class="com.astrbot.ide.AstrBotPlugin" projectOpened="projectOpened"/>
+        </projectListeners>
+    </idea-plugin>
