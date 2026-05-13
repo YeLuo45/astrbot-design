@@ -1,0 +1,108 @@
+name: Verify Plugin Signature
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin_path:
+        description: 'Path to plugin .astrplug file'
+        required: true
+        type: string
+      signature_path:
+        description: 'Path to signature file (.signature)'
+        required: true
+        type: string
+      public_key_path:
+        description: 'Path to developer public key file'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-signature:
+    name: Ed25519 Signature Verification
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup plugin files
+        run: |
+          mkdir -p verification
+          cp "${{ inputs.plugin_path }}" ./verification/plugin.astrplug
+          cp "${{ inputs.signature_path }}" ./verification/plugin.signature
+          cp "${{ inputs.public_key_path }}" ./verification/developer_public_key.pem
+
+      - name: Verify Ed25519 signature
+        id: verify
+        run: |
+          cd verification
+          
+          if [ ! -f plugin.astrplug ]; then
+            echo "error=plugin file not found" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          if [ ! -f plugin.signature ]; then
+            echo "error=signature file not found" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          if [ ! -f developer_public_key.pem ]; then
+            echo "error=public key not found" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          RESULT=$(openssl dgst -sha256 -verify developer_public_key.pem \
+            -signature plugin.signature plugin.astrplug 2>&1)
+          echo "OpenSSL result: $RESULT"
+          
+          if echo "$RESULT" | grep -q "Verified OK"; then
+            echo "signature_valid=true" >> $GITHUB_OUTPUT
+            echo "signature_valid_detail=Ed25519 signature verified successfully"
+          else
+            echo "signature_valid=false" >> $GITHUB_OUTPUT
+            echo "signature_valid_detail=Signature verification failed"
+          fi
+
+      - name: Generate verification report
+        run: |
+          cat > verification-report.json << 'EOF'
+          {
+            "verification_date": "VERIFICATION_DATE",
+            "plugin_path": "PLUGIN_PATH",
+            "signature_path": "SIGNATURE_PATH",
+            "public_key_path": "PUBLIC_KEY_PATH",
+            "algorithm": "Ed25519",
+            "result": {
+              "valid": VALID_STATUS,
+              "detail": "DETAIL"
+            }
+          }
+          EOF
+          
+          VERIFICATION_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sed -i "s/VERIFICATION_DATE/$VERIFICATION_DATE/g" verification-report.json
+          sed -i "s|PLUGIN_PATH|${{ inputs.plugin_path }}|g" verification-report.json
+          sed -i "s|SIGNATURE_PATH|${{ inputs.signature_path }}|g" verification-report.json
+          sed -i "s|PUBLIC_KEY_PATH|${{ inputs.public_key_path }}|g" verification-report.json
+          sed -i "s/VALID_STATUS/${{ steps.verify.outputs.signature_valid }}/g" verification-report.json
+          sed -i "s/DETAIL/${{ steps.verify.outputs.signature_valid_detail }}/g" verification-report.json
+          
+          cat verification-report.json
+
+      - name: Upload verification report
+        uses: actions/upload-artifact@v4
+        with:
+          name: signature-verification-report
+          path: verification-report.json
+          retention-days: 90
+
+      - name: Fail if signature invalid
+        if: steps.verify.outputs.signature_valid != 'true'
+        run: |
+          echo "Signature verification failed!"
+          echo "${{ steps.verify.outputs.signature_valid_detail }}"
+          exit 1

@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://astrbot.org/schemas/index.json",
+  "title": "AstrBot Plugin Marketplace Index",
+  "description": "Schema for the plugin marketplace index file",
+  "type": "object",
+  "required": ["version", "updated_at", "plugins"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Index schema version"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last update timestamp (ISO 8601)"
+    },
+    "plugins": {
+      "type": "array",
+      "description": "List of available plugins",
+      "items": {
+        "$ref": "#/definitions/PluginEntry"
+      }
+    }
+  },
+  "definitions": {
+    "PluginEntry": {
+      "type": "object",
+      "required": [
+        "id", "slug", "name", "description", "version",
+        "author_id", "author_name", "category", "download_url",
+        "sha256", "min_astrbot_version", "status", "created_at", "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique plugin identifier"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "URL-friendly unique name"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Display name"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Short description"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Semantic version"
+        },
+        "author_id": {
+          "type": "string",
+          "description": "Developer UUID"
+        },
+        "author_name": {
+          "type": "string",
+          "description": "Developer display name"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["ai", "tools", "integration", "automation", "other"],
+          "description": "Plugin category"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 5
+        },
+        "download_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Direct download URL for .astrplug file"
+        },
+        "signature_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for Ed25519 signature file"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 checksum of the .astrplug file"
+        },
+        "min_astrbot_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Minimum AstrBot version required"
+        },
+        "download_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rating_average": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "rating_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "license": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "pending", "approved", "rejected", "deleted"],
+          "description": "Plugin approval status"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

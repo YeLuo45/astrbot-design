@@ -1,0 +1,162 @@
+name: Security Scan Plugin
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      plugin_path:
+        description: 'Path to plugin .astrplug file'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  security-events: write
+  attestations: read
+
+jobs:
+  scan-plugin:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download plugin artifact
+        if: github.event_name == 'release'
+        run: |
+          gh release download ${{ github.event.release.tag_name }} --pattern "*.astrplug" --dir ./plugin-package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup plugin from workflow dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p plugin-package
+          cp ${{ inputs.plugin_path }} ./plugin-package/
+
+      - name: Extract plugin
+        run: |
+          mkdir -p extracted-plugin
+          tar -xzf plugin-package/*.astrplug -C extracted-plugin/
+
+      - name: Run ClamAV scan
+        id: clamav
+        run: |
+          clamdscan --fdpass --remove=no extracted-plugin/ || true
+          clamscan -r --infected --remove=no extracted-plugin/ > clamav-result.txt 2>&1 || true
+          cat clamav-result.txt
+          
+          if grep -q "Infected files: 0" clamav-result.txt; then
+            echo "clamav_status=passed" >> $GITHUB_OUTPUT
+          else
+            echo "clamav_status=threats_detected" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Secret Scanning
+        id: secrets
+        run: |
+          SENSITIVE_PATTERNS="password secret api_key private_key token .env id_rsa id_ed25519"
+          FOUND_SECRETS=""
+          for pattern in $SENSITIVE_PATTERNS; do
+            if find extracted-plugin/ -type f -name "*${pattern}*" 2>/dev/null | grep -q .; then
+              FOUND_SECRETS="${FOUND_SECRETS} ${pattern}"
+            fi
+          done
+          
+          echo "secrets_status=clean" >> $GITHUB_OUTPUT
+          if [ -n "$FOUND_SECRETS" ]; then
+            echo "secrets_status=sensitive_files_found" >> $GITHUB_OUTPUT
+            echo "Found sensitive files:$FOUND_SECRETS"
+          fi
+
+      - name: Dependency Audit (Python)
+        id: pip-audit
+        run: |
+          if [ -f extracted-plugin/pyproject.toml ]; then
+            pip install pip-audit 2>/dev/null || true
+            pip-audit -r extracted-plugin/pyproject.toml > pip-audit-result.txt 2>&1 || true
+            cat pip-audit-result.txt
+            
+            if grep -q "No vulnerabilities found" pip-audit-result.txt || [ ! -s pip-audit-result.txt ]; then
+              echo "pip_audit_status=passed" >> $GITHUB_OUTPUT
+            else
+              echo "pip_audit_status=vulnerabilities_found" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "pip_audit_status=skipped" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for executable permissions issues
+        id: permissions
+        run: |
+          SUSPICIOUS_EXECS=$(find extracted-plugin/ -type f -perm /111 2>/dev/null | wc -l)
+          echo "suspicious_executables=$SUSPICIOUS_EXECS" >> $GITHUB_OUTPUT
+          
+          if [ "$SUSPICIOUS_EXECS" -gt 0 ]; then
+            echo "permissions_status=review_needed" >> $GITHUB_OUTPUT
+            find extracted-plugin/ -type f -perm /111 2>/dev/null
+          else
+            echo "permissions_status=clean" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate scan report
+        run: |
+          cat > scan-report.json << 'EOF'
+          {
+            "plugin": "PLUGIN_PLACEHOLDER",
+            "scan_date": "SCAN_DATE_PLACEHOLDER",
+            "scanner_version": "1.0.0",
+            "results": {
+              "clamav": {
+                "status": "CLAMAV_STATUS"
+              },
+              "secrets": {
+                "status": "SECRETS_STATUS"
+              },
+              "pip_audit": {
+                "status": "PIP_AUDIT_STATUS"
+              },
+              "permissions": {
+                "status": "PERMISSIONS_STATUS",
+                "suspicious_executables": PERMISSIONS_COUNT
+              }
+            }
+          }
+          EOF
+          
+          SCAN_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          PLUGIN_NAME="${{ github.event.inputs.plugin_path || github.event.release.tag_name }}"
+          
+          sed -i "s/PLUGIN_PLACEHOLDER/$PLUGIN_NAME/g" scan-report.json
+          sed -i "s/SCAN_DATE_PLACEHOLDER/$SCAN_DATE/g" scan-report.json
+          sed -i "s/CLAMAV_STATUS/${{ steps.clamav.outputs.clamav_status }}/g" scan-report.json
+          sed -i "s/SECRETS_STATUS/${{ steps.secrets.outputs.secrets_status }}/g" scan-report.json
+          sed -i "s/PIP_AUDIT_STATUS/${{ steps.pip-audit.outputs.pip_audit_status }}/g" scan-report.json
+          sed -i "s/PERMISSIONS_STATUS/${{ steps.permissions.outputs.permissions_status }}/g" scan-report.json
+          sed -i "s/PERMISSIONS_COUNT/${{ steps.permissions.outputs.suspicious_executables }}/g" scan-report.json
+          
+          cat scan-report.json
+
+      - name: Upload scan report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-report
+          path: scan-report.json
+          retention-days: 90
+
+      - name: Set scan status output
+        id: scan-status
+        run: |
+          if [[ "${{ steps.clamav.outputs.clamav_status }}" == "threats_detected" ]] || \
+             [[ "${{ steps.secrets.outputs.secrets_status }}" == "sensitive_files_found" ]]; then
+            echo "scan_result=failed" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "scan_result=passed" >> $GITHUB_OUTPUT
+          fi
