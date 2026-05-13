@@ -36,5 +36,14 @@ def version():
     console.print(f"[bold green]AstrBot CLI[/bold green] v{__version__}")
 
 
+# Register subcommand groups
+from .commands import new, plugin, config, batch
+
+app.add_typer(new.app, name="new")
+app.add_typer(plugin.app, name="plugin")
+app.add_typer(config.app, name="config")
+app.add_typer(batch.app, name="batch")
+
+
 if __name__ == "__main__":
     app()
