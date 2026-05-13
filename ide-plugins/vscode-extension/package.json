@@ -1,0 +1,99 @@
+{
+  "name": "astrbot-helper",
+  "displayName": "AstrBot Helper",
+  "description": "VSCode Extension for AstrBot Development - Status panel, plugin generator, debug integration",
+  "version": "1.0.0",
+  "publisher": "AstrBot",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Debuggers",
+    "Extension Packs"
+  ],
+  "activationEvents": [
+    "onView:astrbotHelperView",
+    "onCommand:astrbot-helper.refreshStatus",
+    "onCommand:astrbot-helper.newPlugin",
+    "onCommand:astrbot-helper.openRepl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "astrbotHelperView",
+          "name": "AstrBot Helper",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "astrbot-sidebar",
+          "title": "AstrBot Helper",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "astrbot-helper.refreshStatus",
+        "title": "Refresh AstrBot Status",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "astrbot-helper.newPlugin",
+        "title": "New AstrBot Plugin",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "astrbot-helper.openRepl",
+        "title": "Open AstrBot REPL",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "astrbot-helper.attachDebugger",
+        "title": "Attach to AstrBot",
+        "icon": "$(debug)"
+      }
+    ],
+    "configuration": {
+      "title": "AstrBot",
+      "properties": {
+        "astrbot.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "AstrBot API URL"
+        },
+        "astrbot.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "AstrBot API Key (optional)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "@types/glob": "^7.2.0",
+    "@vscode/test-electron": "^2.3.0",
+    "typescript": "^5.3.0",
+    "glob": "^7.2.0",
+    "ts-loader": "^9.5.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "vscode": "^1.1.37"
+  }
+}

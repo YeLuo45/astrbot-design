@@ -1,0 +1,8 @@
+{
+  "id": "{{plugin_id}}",
+  "name": "{{plugin_name}}",
+  "version": "0.1.0",
+  "description": "AstrBot plugin - {{plugin_description}}",
+  "author": "{{author}}",
+  "dependencies": {}
+}
