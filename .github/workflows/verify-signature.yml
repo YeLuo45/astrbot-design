@@ -26,7 +26,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup plugin files
         run: |
@@ -94,7 +94,7 @@ jobs:
           cat verification-report.json
 
       - name: Upload verification report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signature-verification-report
           path: verification-report.json
