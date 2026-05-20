@@ -25,7 +25,7 @@ jobs:
       
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download plugin artifact
         if: github.event_name == 'release'
@@ -144,7 +144,7 @@ jobs:
           cat scan-report.json
 
       - name: Upload scan report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-scan-report
           path: scan-report.json
